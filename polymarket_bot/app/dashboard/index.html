@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Polymarket Bot v2</title>
+<style>
+:root{
+  --bg:#05080f;--card:#0c1829;--border:#1e3a5f;--text:#cbd5e1;
+  --green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--blue:#38bdf8;
+  --purple:#a78bfa;--muted:#475569;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',monospace;padding:14px;font-size:12.5px}
+h1{color:var(--blue);font-size:1.2rem;font-weight:700;letter-spacing:.03em}
+.sub{color:var(--muted);font-size:.7rem;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;margin-top:3px;align-items:center}
+.pill{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:2px 9px;font-size:.68rem}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:3px;vertical-align:middle}
+.g{background:var(--green);animation:pulse 1.4s infinite}
+.r{background:var(--red)}
+.y{background:var(--yellow)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* Tier badge */
+.tier-badge{display:inline-block;padding:3px 10px;border-radius:4px;font-weight:700;font-size:.75rem;letter-spacing:.06em}
+.tier-MICRO {background:#1a0a0a;color:#f87171;border:1px solid #7f1d1d}
+.tier-LOW   {background:#1a140a;color:#fbbf24;border:1px solid #78350f}
+.tier-MID   {background:#0a1a14;color:#34d399;border:1px solid #064e3b}
+.tier-HIGH  {background:#0a1220;color:#60a5fa;border:1px solid #1e3a8a}
+.tier-WHALE {background:#140a1a;color:#c084fc;border:1px solid #581c87}
+.tier-HALTED{background:#1a1a1a;color:#6b7280;border:1px solid #374151}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:7px;margin-bottom:10px}
+.st{background:var(--card);border:1px solid var(--border);border-radius:7px;padding:10px}
+.sl{color:var(--muted);font-size:.62rem;text-transform:uppercase;letter-spacing:.07em}
+.sv{font-size:1.2rem;font-weight:700;margin-top:3px}
+.green{color:var(--green)}.red{color:var(--red)}.blue{color:var(--blue)}
+.yellow{color:var(--yellow)}.purple{color:var(--purple)}.gray{color:var(--muted)}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:7px;padding:12px;margin-bottom:10px}
+.card h2{color:var(--muted);font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+table{width:100%;border-collapse:collapse}
+th{color:var(--muted);text-align:left;padding:3px 5px;border-bottom:1px solid var(--border);font-size:.67rem;font-weight:500}
+td{padding:4px 5px;border-bottom:1px solid #080e1a;font-size:.74rem;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#0f2033}
+
+.b{display:inline-block;padding:1px 7px;border-radius:999px;font-size:.65rem;font-weight:700}
+.b-buy  {background:#0a2a1a;color:var(--green)}
+.b-sbuy {background:#0a3020;color:#4ade80;border:1px solid #16a34a}
+.b-hold {background:#111;color:var(--muted);border:1px solid #1e293b}
+.b-exit {background:#2a0a0a;color:var(--red)}
+
+.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+.two  {display:grid;grid-template-columns:1fr 1fr;gap:9px}
+@media(max-width:700px){.three{grid-template-columns:1fr}.two{grid-template-columns:1fr}}
+
+.prog-bar{background:#0a1829;border-radius:3px;height:5px;margin-top:4px;overflow:hidden}
+.prog-fill{height:100%;border-radius:3px;transition:width .5s}
+.mode-live {color:var(--red);font-weight:700}
+.mode-paper{color:var(--yellow)}
+.tag{font-size:.62rem;color:var(--muted);margin-left:4px;font-weight:400}
+</style>
+</head>
+<body>
+
+<h1>🏦 Polymarket Bot <span style="font-size:.75rem;font-weight:400;color:var(--muted)">v2 — Auto-Scaling</span>
+  <span id="mode-label" class="mode-paper" style="margin-left:10px;font-size:.75rem">📄 Paper</span>
+</h1>
+
+<div class="sub">
+  <span><span class="dot g" id="ws-dot"></span><span id="ws-s">connecting...</span></span>
+  <span class="pill">📨 <b id="wm">0</b> msgs</span>
+  <span class="pill">🔗 <b id="wt">0</b> tokens</span>
+  <span id="tier-pill" class="pill tier-badge tier-MICRO">MICRO</span>
+  <span class="pill" id="streak-pill">streak —</span>
+  <span class="pill" id="cooldown-pill" style="display:none;color:var(--red)">⏸ cooldown</span>
+</div>
+
+<!-- KPI grid -->
+<div class="grid">
+  <div class="st"><div class="sl">Balance</div><div class="sv blue" id="bal">$—</div></div>
+  <div class="st"><div class="sl">Next Size</div><div class="sv purple" id="nxt">$—</div></div>
+  <div class="st"><div class="sl">Total P&L</div><div class="sv" id="pnl">—</div></div>
+  <div class="st"><div class="sl">Win Rate</div><div class="sv" id="wr">—</div></div>
+  <div class="st"><div class="sl">Expectancy</div><div class="sv" id="ex">—</div></div>
+  <div class="st"><div class="sl">Max DD</div><div class="sv yellow" id="mdd">—</div></div>
+  <div class="st"><div class="sl">Trades</div><div class="sv" id="tot">—</div></div>
+  <div class="st"><div class="sl">Open Pos</div><div class="sv yellow" id="opr">— / —</div></div>
+</div>
+
+<!-- Capital tier panel + Risk state + Streak -->
+<div class="three">
+  <div class="card">
+    <h2>⚙️ Capital Tier</h2>
+    <table><tbody id="cap-tb"></tbody></table>
+  </div>
+  <div class="card">
+    <h2>🛡️ Risk State</h2>
+    <table><tbody id="risk-tb"></tbody></table>
+  </div>
+  <div class="card">
+    <h2>📈 Streak & Scaling</h2>
+    <table><tbody id="streak-tb"></tbody></table>
+  </div>
+</div>
+
+<!-- Open positions -->
+<div class="card">
+  <h2>⚡ Open Positions</h2>
+  <table>
+    <thead><tr><th>Market</th><th>Entry</th><th>Size</th><th>Tier</th><th>TP</th><th>SL</th><th>Partial</th></tr></thead>
+    <tbody id="pos-tb"><tr><td colspan="7" class="gray">No open positions</td></tr></tbody>
+  </table>
+</div>
+
+<!-- Live signals -->
+<div class="card">
+  <h2>📡 Live Signals <span class="tag">score = confluence · edge = FV deviation · res = resolution prob</span></h2>
+  <table>
+    <thead><tr><th>Market</th><th>Signal</th><th>Score</th><th>Edge</th><th>FV</th><th>Res%</th><th>z</th><th>OB</th><th>Ext</th></tr></thead>
+    <tbody id="sig-tb"><tr><td colspan="9" class="gray">Waiting for signals...</td></tr></tbody>
+  </table>
+</div>
+
+<!-- Trades + Auto-tune -->
+<div class="two">
+  <div class="card">
+    <h2>📋 Trade History <span class="tag">by tier</span></h2>
+    <table>
+      <thead><tr><th>Market</th><th>Tier</th><th>Entry</th><th>Exit</th><th>P&L%</th><th>P&L$</th><th>Reason</th></tr></thead>
+      <tbody id="tr-tb"><tr><td colspan="7" class="gray">No closed trades yet</td></tr></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h2>🧠 Auto-Tune</h2>
+    <ul id="tune-l" style="padding-left:14px;line-height:2;font-size:.75rem"></ul>
+    <div id="tier-pnl" style="color:var(--muted);font-size:.68rem;margin-top:8px"></div>
+    <div id="exit-bd"  style="color:var(--muted);font-size:.68rem;margin-top:4px"></div>
+  </div>
+</div>
+
+<p style="color:#1e3a5f;font-size:.6rem;margin-top:6px">Refreshes every 3s · Polymarket Bot v2 Auto-Scaling</p>
+
+<script>
+const f = async u => { try { return await (await fetch(u)).json() } catch { return null } };
+const pct  = v => (v * 100).toFixed(1) + '%';
+const col  = v => v >= 0 ? 'green' : 'red';
+const fmt$ = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
+const c    = v => v >= 0 ? '#22c55e' : '#ef4444';
+
+function badge(a) {
+  if (a === 'STRONG_BUY' || a === 'BUY')
+    return `<span class="b b-buy">${a}</span>`;
+  if (a === 'OPEN')
+    return `<span class="b b-sbuy">OPEN</span>`;
+  if (a === 'SL' || a === 'CLOSE')
+    return `<span class="b b-exit">${a}</span>`;
+  return `<span class="b b-hold">HOLD</span>`;
+}
+
+function tierClass(t) {
+  return 'tier-' + (t || 'MICRO');
+}
+
+let prevMsg = 0;
+
+async function refresh() {
+  const [st, sig, pos, tr, at, cap] = await Promise.all([
+    f('/stats'), f('/signals'), f('/positions'),
+    f('/trades'), f('/autotune'), f('/capital')
+  ]);
+
+  // ── KPIs ──────────────────────────────────────────────────────────
+  if (st) {
+    document.getElementById('bal').textContent = '$' + (st.balance || 0).toFixed(2);
+
+    const pnlEl = document.getElementById('pnl');
+    pnlEl.textContent = fmt$(st.total_pnl || 0);
+    pnlEl.className   = 'sv ' + col(st.total_pnl || 0);
+
+    document.getElementById('wr').textContent  = st.total_trades ? pct(st.winrate) : '—';
+    document.getElementById('tot').textContent = st.total_trades || 0;
+
+    const exEl = document.getElementById('ex');
+    exEl.textContent = st.total_trades ? ((st.expectancy * 100).toFixed(2) + '%') : '—';
+    exEl.className   = 'sv ' + col(st.expectancy || 0);
+
+    document.getElementById('mdd').textContent = st.total_trades ? pct(st.max_drawdown) : '0%';
+    document.getElementById('opr').textContent =
+      (st.open_positions || 0) + ' / ' + (st.max_positions || 1);
+
+    const wm = st.ws_messages || 0;
+    document.getElementById('wm').textContent = wm;
+    document.getElementById('wt').textContent = st.ws_tokens || 0;
+    const live = st.ws_live || wm > prevMsg;
+    document.getElementById('ws-dot').className = 'dot ' + (live ? 'g' : 'y');
+    document.getElementById('ws-s').textContent  = live ? 'WS Live ✓' : 'WS Idle';
+    prevMsg = wm;
+
+    document.getElementById('mode-label').textContent =
+      st.live_mode ? '🔴 LIVE' : '📄 Paper';
+    document.getElementById('mode-label').className =
+      st.live_mode ? 'mode-live' : 'mode-paper';
+  }
+
+  // ── Capital tier panel ─────────────────────────────────────────────
+  if (cap) {
+    const t = cap.tier || 'MICRO';
+    document.getElementById('tier-pill').textContent = t;
+    document.getElementById('tier-pill').className   = 'pill tier-badge ' + tierClass(t);
+    document.getElementById('nxt').textContent = '$' + (cap.next_size || 0).toFixed(2);
+
+    const streak = cap.streak || {};
+    const cd = streak.cooldown_remaining || 0;
+    const cdPill = document.getElementById('cooldown-pill');
+    if (cd > 0) {
+      cdPill.style.display = '';
+      cdPill.textContent   = `⏸ cooldown ${cd.toFixed(0)}s`;
+    } else {
+      cdPill.style.display = 'none';
+    }
+
+    document.getElementById('cap-tb').innerHTML = [
+      ['Tier',         `<span class="tier-badge ${tierClass(t)}">${t}</span>`],
+      ['Balance',      '$' + (cap.balance || 0).toFixed(2)],
+      ['Next Size',    '$' + (cap.next_size || 0).toFixed(2)],
+      ['Risk %',       ((cap.risk_pct || 0) * 100).toFixed(0) + '%'],
+      ['Take Profit',  ((cap.take_profit || 0) * 100).toFixed(0) + '%'],
+      ['Stop Loss',    ((cap.stop_loss || 0) * 100).toFixed(0) + '%'],
+      ['Min Score',    (cap.min_score || 3) + '/5 signals'],
+      ['Max Pos',      cap.max_positions || 1],
+      ['Partials',     cap.partial_exit ? '✅' : '—'],
+      ['Scale-in',     cap.scale_in ? '✅' : '—'],
+    ].map(r => `<tr><td class="gray">${r[0]}</td><td><b>${r[1]}</b></td></tr>`).join('');
+  }
+
+  // ── Risk state ─────────────────────────────────────────────────────
+  if (st) {
+    const s = st.stats || {};
+    document.getElementById('risk-tb').innerHTML = [
+      ['Win Rate',     st.total_trades ? pct(st.winrate) : '—'],
+      ['Expectancy',   st.total_trades ? ((st.expectancy * 100).toFixed(2) + '%') : '—'],
+      ['Max Drawdown', pct(st.max_drawdown || 0)],
+      ['Current DD',   pct(s.current_drawdown || 0)],
+      ['Peak Balance', '$' + (s.peak_balance || st.balance || 0).toFixed(2)],
+      ['Daily P&L',    fmt$(s.total_pnl || 0)],
+      ['Consec Loss',  s.consecutive_losses || 0],
+    ].map(r => `<tr><td class="gray">${r[0]}</td><td style="color:${typeof r[1]==='string'&&r[1].startsWith('-')?'var(--red)':'inherit'}"><b>${r[1]}</b></td></tr>`).join('');
+  }
+
+  // ── Streak panel ───────────────────────────────────────────────────
+  if (st && st.streak) {
+    const sk = st.streak;
+    const sPill = document.getElementById('streak-pill');
+    if (sk.consecutive_wins > 0)
+      sPill.textContent = `🔥 ${sk.consecutive_wins}W streak`;
+    else if (sk.consecutive_losses > 0)
+      sPill.textContent = `❄️ ${sk.consecutive_losses}L streak`;
+    else
+      sPill.textContent = 'streak —';
+
+    document.getElementById('streak-tb').innerHTML = [
+      ['Win Streak',   sk.consecutive_wins || 0],
+      ['Loss Streak',  sk.consecutive_losses || 0],
+      ['Size Mult',    (sk.size_multiplier || 1).toFixed(2) + 'x'],
+      ['Cooldown',     sk.in_cooldown ? `${(sk.cooldown_remaining || 0).toFixed(0)}s` : '—'],
+      ['Peak Balance', '$' + (sk.peak_balance || 0).toFixed(2)],
+    ].map(r => `<tr><td class="gray">${r[0]}</td><td><b>${r[1]}</b></td></tr>`).join('');
+  }
+
+  // ── Open positions ─────────────────────────────────────────────────
+  if (pos && pos.length) {
+    document.getElementById('pos-tb').innerHTML = pos.map(p => {
+      const gain = p.entry_price > 0
+        ? ((((p.max_price || p.entry_price) - p.entry_price) / p.entry_price) * 100).toFixed(1) + '%'
+        : '—';
+      return `<tr>
+        <td>${(p.question || p.market_id || '').slice(0, 32)}</td>
+        <td>${((p.entry_price || 0) * 100).toFixed(1)}¢</td>
+        <td>$${(p.size || 0).toFixed(1)}</td>
+        <td><span class="tier-badge ${tierClass(p.tier)}">${p.tier || '?'}</span></td>
+        <td class="green">${((p.take_profit || 0) * 100).toFixed(0)}%</td>
+        <td class="red">${((p.stop_loss || 0) * 100).toFixed(0)}%</td>
+        <td>${p.partial_closed ? '<span class="green">✓</span>' : '—'}</td>
+      </tr>`;
+    }).join('');
+  } else {
+    document.getElementById('pos-tb').innerHTML = '<tr><td colspan="7" class="gray">No open positions</td></tr>';
+  }
+
+  // ── Signals ────────────────────────────────────────────────────────
+  if (sig && sig.length) {
+    document.getElementById('sig-tb').innerHTML = sig.slice().reverse().slice(0, 15).map(s => {
+      const sc   = s.score || 0;
+      const scC  = sc >= 6 ? '#22c55e' : sc >= 3 ? '#f59e0b' : '#475569';
+      const resPct = ((s.res_prob || 0.5) * 100).toFixed(0) + '%';
+      const extDot = s.has_ext ? '<span style="color:#22c55e">●</span>' : '<span style="color:#475569">○</span>';
+      return `<tr>
+        <td>${(s.market || '').slice(0, 34)}</td>
+        <td>${badge(s.action)}</td>
+        <td style="color:${scC};font-weight:700">${sc >= 0 ? '+' : ''}${sc}</td>
+        <td style="color:${c(s.edge || 0)}">${((s.edge || 0) * 100).toFixed(1)}%</td>
+        <td style="color:var(--blue)">${((s.fv || 0) * 100).toFixed(1)}¢</td>
+        <td style="color:${(s.res_prob || 0.5) > 0.6 ? '#22c55e' : (s.res_prob || 0.5) < 0.4 ? '#ef4444' : '#475569'}">${resPct}</td>
+        <td style="color:${(s.z_score || 0) > 1.5 ? '#ef4444' : (s.z_score || 0) < -1.5 ? '#22c55e' : '#475569'}">${(s.z_score || 0).toFixed(1)}</td>
+        <td style="color:${(s.imbalance || 0) > 0 ? '#22c55e' : '#ef4444'}">${((s.imbalance || 0) * 100).toFixed(0)}%</td>
+        <td>${extDot}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── Trade history ──────────────────────────────────────────────────
+  if (tr && tr.length) {
+    document.getElementById('tr-tb').innerHTML = tr.slice().reverse().slice(0, 15).map(t => `
+      <tr>
+        <td>${(t.market || '').slice(0, 28)}</td>
+        <td><span class="tier-badge ${tierClass(t.tier)}">${t.tier || '?'}</span></td>
+        <td>${((t.entry || t.entry_price || 0) * 100).toFixed(1)}¢</td>
+        <td>${((t.exit || t.exit_price || 0) * 100).toFixed(1)}¢</td>
+        <td style="color:${c(t.pnl_pct || 0)}">${((t.pnl_pct || 0) * 100).toFixed(2)}%</td>
+        <td style="color:${c(t.pnl_value || t.pnl || 0)}">${fmt$(t.pnl_value || t.pnl || 0)}</td>
+        <td style="color:var(--muted);font-size:.63rem">${t.exit_reason || t.reason || '—'}</td>
+      </tr>`).join('');
+  }
+
+  // ── Auto-tune ──────────────────────────────────────────────────────
+  if (at) {
+    const recs = at.recommendations || [];
+    document.getElementById('tune-l').innerHTML = recs.length
+      ? recs.map(r => `<li>${r}</li>`).join('')
+      : '<li style="color:var(--muted)">✓ No adjustments needed</li>';
+
+    if (at.tier_breakdown && Object.keys(at.tier_breakdown).length) {
+      document.getElementById('tier-pnl').innerHTML =
+        'P&L by tier: ' + Object.entries(at.tier_breakdown)
+          .map(([k, v]) => `<span class="tier-badge ${tierClass(k)}">${k}</span> ${fmt$(v)}`)
+          .join('  ');
+    }
+    if (at.exit_breakdown && Object.keys(at.exit_breakdown).length) {
+      document.getElementById('exit-bd').innerHTML =
+        'Exits: ' + JSON.stringify(at.exit_breakdown);
+    }
+  }
+}
+
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>

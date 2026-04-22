@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+requests
+textblob
+websocket-client
+python-dotenv
+py-clob-client>=0.11.0
+numpy
+web3
