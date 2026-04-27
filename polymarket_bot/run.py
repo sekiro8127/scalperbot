@@ -9,28 +9,35 @@ import logging
 import uvicorn
 
 from app.dashboard.dashboard import app as dash_app
-from app.orchestrator import run
-from app.trader import shutdown
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
+logger = logging.getLogger("entrypoint")
 
-def _port_in_use(port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(("localhost", port)) == 0
+DASHBOARD_PORT = int(os.getenv("PORT", "5000"))
 
 
-def _start_dashboard():
-    if _port_in_use(8000):
-        print("WARNING: Port 8000 in use. Dashboard skipped.")
-        return
+def _start_engine():
+    """Run the trading orchestrator in a background thread.
+
+    Imported lazily so the dashboard can come up even if the engine
+    can't reach external services (e.g. no network/credentials).
+    """
     try:
-        uvicorn.run(dash_app, host="0.0.0.0", port=8000, log_level="error")
+        from app.orchestrator import run
+        run()
+    except KeyboardInterrupt:
+        pass
     except Exception as e:
-        print(f"DASHBOARD ERROR: {e}")
+        logger.error(f"ENGINE CRASH: {e}", exc_info=True)
+        try:
+            from app.trader import shutdown
+            shutdown()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
@@ -45,18 +52,26 @@ if __name__ == "__main__":
         print("  [PAPER]  PAPER TRADING MODE")
         print("  Set LIVE_TRADING=true in .env when ready to go live.")
     print(f"  Starting balance: ${balance:.2f}")
+    print(f"  Dashboard -> http://0.0.0.0:{DASHBOARD_PORT}")
     print("=" * 60)
 
-    threading.Thread(target=_start_dashboard, daemon=True, name="dash").start()
-    time.sleep(1)
-    print("Dashboard -> http://localhost:8000\n")
+    # Start the trading engine in the background. The dashboard runs
+    # in the main thread so the UI stays available even if the engine
+    # can't reach Polymarket.
+    threading.Thread(target=_start_engine, daemon=True, name="engine").start()
 
     try:
-        run()
+        uvicorn.run(
+            dash_app,
+            host="0.0.0.0",
+            port=DASHBOARD_PORT,
+            log_level="info",
+        )
     except KeyboardInterrupt:
         print("\nShutting down...")
-        shutdown()
+        try:
+            from app.trader import shutdown
+            shutdown()
+        except Exception:
+            pass
         print("Done.")
-    except Exception as e:
-        logging.critical(f"ENGINE CRASH: {e}", exc_info=True)
-        shutdown()

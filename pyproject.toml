@@ -1,0 +1,16 @@
+[project]
+name = "repl-nix-workspace"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.136.1",
+    "numpy>=2.4.4",
+    "py-clob-client>=0.11.0",
+    "python-dotenv>=1.2.2",
+    "requests>=2.33.1",
+    "textblob>=0.20.0",
+    "uvicorn>=0.46.0",
+    "web3>=7.15.0",
+    "websocket-client>=1.9.0",
+]
