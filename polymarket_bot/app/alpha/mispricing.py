@@ -56,14 +56,14 @@ def score_mispricing(market_id, token_id, current_price, fv_result, prices, ob, 
     whale_prs = flow.get("pressure", 0.0)
     edge      = fv - current_price
 
-    # A. FV deviation
+    # A. FV deviation (lowered thresholds — old 0.01 floor was rarely hit)
     if abs(deviation) > 0.05:
         score += fv_dir * 4; reasons.append(f"FV_dev+4({deviation:+.3f})")
     elif abs(deviation) > 0.03:
         score += fv_dir * 3; reasons.append("FV_dev+3")
-    elif abs(deviation) > 0.02:
+    elif abs(deviation) > 0.015:
         score += fv_dir * 2; reasons.append("FV_dev+2")
-    elif abs(deviation) > 0.01:
+    elif abs(deviation) > 0.005:
         score += fv_dir * 1; reasons.append("FV_dev+1")
 
     # B. Z-score overextension

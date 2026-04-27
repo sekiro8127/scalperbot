@@ -74,18 +74,23 @@ def get_performance_stats() -> dict:
 
 def can_open(market_id: str, alpha_score: int = 0, edge: float = 0.0,
              confidence: float = 0.5) -> Tuple[bool, str]:
-    """Full gate: balance, cooldown, tier params, signal quality."""
+    """Full gate: balance, cooldown, tier params, signal quality.
+
+    NOTE: Lowered the absolute balance floor from $10 to $1 — the previous
+    floor blocked every paper-mode entry when starting from a $10 bankroll
+    after even a single small loss. The per-tier `computed_size` already
+    enforces a meaningful minimum.
+    """
     if market_id in active_positions:
         return False, "already_in_position"
 
-    if balance < 10.0:
-        return False, f"balance_${balance:.2f}_below_$10_minimum"
+    if balance < 1.0:
+        return False, f"balance_${balance:.2f}_below_$1_minimum"
 
     if is_in_cooldown():
         rem = cooldown_remaining()
         return False, f"loss_cooldown_{rem:.0f}s_remaining"
 
-    # Get tier params
     params = get_tier_params(balance, edge, confidence)
 
     if params.tier == "HALTED":
@@ -98,7 +103,7 @@ def can_open(market_id: str, alpha_score: int = 0, edge: float = 0.0,
         return False, f"score_{alpha_score}<{params.min_score}_for_{params.tier}"
 
     if abs(edge) < params.min_edge:
-        return False, f"edge_{edge:.3f}<{params.min_edge:.3f}_for_{params.tier}"
+        return False, f"edge_{edge:+.3f}_below_{params.min_edge:.3f}_for_{params.tier}"
 
     if params.computed_size < 1.0:
         return False, f"computed_size_${params.computed_size:.2f}_too_small"
@@ -127,9 +132,14 @@ def open_position(
 
     ok, why = can_open(market_id, alpha_score, edge, confidence)
     if not ok:
+        logger.info(
+            f"OPEN_REJECTED | mkt={market_id[:16]} reason={why} "
+            f"score={alpha_score} edge={edge:+.3f}"
+        )
         return None
 
     if daily_loss_breached(START_BALANCE):
+        logger.warning(f"OPEN_REJECTED | mkt={market_id[:16]} reason=daily_loss_breached")
         return None
 
     params = get_tier_params(balance, edge, confidence)
@@ -139,10 +149,13 @@ def open_position(
         size = round(balance * 0.90, 2)
 
     if size < 1.0:
+        logger.info(
+            f"OPEN_REJECTED | mkt={market_id[:16]} reason=size_${size:.2f}_below_$1"
+        )
         return None
 
     if not place_order(token_id=token_id, price=price, size=size, side="BUY"):
-        logger.error(f"Order failed | market={market_id}")
+        logger.error(f"OPEN_REJECTED | mkt={market_id[:16]} reason=place_order_failed")
         return None
 
     position = {

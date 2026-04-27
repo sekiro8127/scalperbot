@@ -43,21 +43,21 @@ LOSS_STREAK_CUT      = 0.50
 TIERS = {
     "MICRO": {
         "min": 1,   "max": 30,
-        "risk_pct": 0.15,  "max_positions": 3,
+        "risk_pct": 0.15,  "max_positions": 2,
         "min_score": 2,    "take_profit": 0.025,
         "stop_loss": 0.04, "partial_exit": True,
-        "scale_in":  False,"max_hold_hrs": 0.033,
-        "trail_pct": 0.015,"cooldown_secs": 10,
-        "min_edge":  0.01,
+        "scale_in":  False,"max_hold_hrs": 0.5,        # 30 min — was 2 min
+        "trail_pct": 0.015,"cooldown_secs": 30,
+        "min_edge":  0.005,                            # was 0.01 (unreachable)
     },
     "LOW": {
         "min": 30,   "max": 100,
         "risk_pct": 0.18,  "max_positions": 3,
         "min_score": 2,    "take_profit": 0.03,
         "stop_loss": 0.06, "partial_exit": True,
-        "scale_in":  False,"max_hold_hrs": 0.05,
-        "trail_pct": 0.020,"cooldown_secs": 15,
-        "min_edge":  0.02,
+        "scale_in":  False,"max_hold_hrs": 1.0,
+        "trail_pct": 0.020,"cooldown_secs": 30,
+        "min_edge":  0.01,                             # was 0.02
     },
     "MID": {
         "min": 100,  "max": 500,
