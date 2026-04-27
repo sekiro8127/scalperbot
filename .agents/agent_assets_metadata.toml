@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "4TK20ykWZuy5NLwC-mq6z"
+uri = "file://exports/polymarket_bot_project.zip"
+type = "unspecified"
+title = "Polymarket Bot — Full Project"
